@@ -27,9 +27,11 @@ router.get("/:id", async (req, res) => {
   if (req.query.action === "download") {
     res.set("Content-Disposition", "attachment");
   }
+  
   res.on("close", () => {
     console.log("Client disconnected");
   });
+
   return res.sendFile(`${filePath}`, (err) => {
     if (err) {
       console.log(err);
