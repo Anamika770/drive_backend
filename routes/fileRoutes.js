@@ -13,11 +13,11 @@ router.get("/:id", async (req, res) => {
   const base = path.resolve("./storage");
   const fileId = req.params.id;
   const fileData = filesDbData.find((file) => file.id === fileId);
-  
+
   if (!fileData) {
     return res.status(404).json({ error: "File not found" });
   }
-  
+
   const filePath = path.join(base, fileId + fileData.extension);
 
   if (!filePath.startsWith(base + path.sep)) {
@@ -27,10 +27,15 @@ router.get("/:id", async (req, res) => {
   if (req.query.action === "download") {
     res.set("Content-Disposition", "attachment");
   }
+  res.on("close", () => {
+    console.log("Client disconnected");
+  });
   return res.sendFile(`${filePath}`, (err) => {
     if (err) {
       console.log(err);
-      res.json({ error: err });
+      if (!res.headersSent) {
+        return res.status(500).json({ error: "Failed to read file" });
+      }
     }
   });
 });
@@ -43,13 +48,12 @@ router.post("/:parentDirId?", (req, res, next) => {
   const basePath = path.resolve("./storage");
   const id = crypto.randomUUID();
   const filePath = path.join(basePath, `${id}${extension}`);
-  if(!parentDirId) {
+  if (!parentDirId) {
     return res.status(400).json({ error: "Parent directory ID is required" });
   }
   const writeStream = createWriteStream(filePath);
   req.pipe(writeStream);
 
-  
   const newFileData = {
     id,
     name: fileName,
@@ -57,7 +61,11 @@ router.post("/:parentDirId?", (req, res, next) => {
     mimeType: fileName.split(".").pop(),
     parentDirId,
   };
-  
+  writeStream.on("error", (err) => {
+    next(err);
+    res.status(500).json({ error: "Failed to upload file" });
+  });
+
   writeStream.on("finish", async () => {
     filesDbData.push(newFileData);
     const folderIndex = foldersDbData.findIndex((folder) => folder.id === parentDirId);
@@ -80,14 +88,10 @@ router.post("/:parentDirId?", (req, res, next) => {
     }
   });
 
-  writeStream.on("error", (err) => {
-    next(err);
-    res.status(500).json({ error: "Failed to upload file" });
-  });
 });
 
 //update file name
-router.patch("/:id", async (req, res) => {
+router.patch("/:id", express.json(), async (req, res) => {
   const fileId = req.params.id;
   let { newName } = req.body;
   newName = newName.trim();

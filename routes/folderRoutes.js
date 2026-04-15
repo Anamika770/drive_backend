@@ -8,7 +8,8 @@ const router = express.Router();
 
 //read folder and its content
 router.get("/:folderId?", async (req, res) => {
-  const folderId = req.params.folderId || "cbb5e4cf-6234-4041-8577-07c9a44e4a3d";
+
+  const folderId = req.params.folderId || foldersDbData[0].id; // default to root folder if no id provided
 
   const folderData = foldersDbData.find((folder) => folder.id === folderId);
 
@@ -27,7 +28,7 @@ router.get("/:folderId?", async (req, res) => {
 });
 
 //create folder
-router.post("/:parentDirId?", async (req, res) => {
+router.post("/:parentDirId?", express.json(), async (req, res) => {
   const folderName = req.body.folderName || "New Folder";
   const parentDirId = req.params.parentDirId || null;
   const newFolderData = {
@@ -46,6 +47,8 @@ router.post("/:parentDirId?", async (req, res) => {
 
   try {
     await writeFile('./data/foldersDb.json', JSON.stringify(foldersDbData));
+    console.log('done');
+
     res.json({ msg: "folder created Successfully." });
   } catch (err) {
     res.json({ msg: err });
@@ -53,7 +56,7 @@ router.post("/:parentDirId?", async (req, res) => {
 });
 
 //update folder name
-router.patch("/:id", async (req, res) => {
+router.patch("/:id", express.json(), async (req, res) => {
   const folderId = req.params.id;
   let { newName } = req.body;
   newName = newName.trim();
@@ -86,6 +89,13 @@ router.delete("/:id", async (req, res) => {
     return res.status(404).json({ error: "Folder not found" });
   }
 
+  const parentDirId = foldersDbData[folderIndex].parentDirId;
+  const parentDirIndex = foldersDbData.findIndex(f => f.id === parentDirId);
+  if (parentDirIndex === -1) {
+    return res.status(404).json({ error: "Parent folder not found" });
+  }
+  foldersDbData[parentDirIndex].folders.splice(foldersDbData[parentDirIndex].folders.indexOf(folderId), 1);
+
   function collectAll(folder) {
     let result = {
       folderIds: [folder.id],
@@ -106,10 +116,16 @@ router.delete("/:id", async (req, res) => {
   try {
     const { folderIds, files } = collectAll(foldersDbData[folderIndex]);
     for (const file of files) {
-      await rm(`./storage/${file.id}${path.extname(file.name)}`);
+      const fileData = filesDbData.find(f => f.id === file);
+      await rm(`./storage/${fileData.id}${path.extname(fileData.name)}`);
     }
-    filesDbData = filesDbData.filter(f => !files.some(df => df.id === f.id));
-    foldersDbData = foldersDbData.filter(f => !folderIds.includes(f.id));
+    const remainingFiles = filesDbData.filter(f => !files.includes(f.id));
+    filesDbData.length = 0; // This clears the constant array safely
+    filesDbData.push(...remainingFiles); // This fills it back up
+
+    const remainingFolders = foldersDbData.filter(f => !folderIds.includes(f.id));
+    foldersDbData.length = 0; // Clears the constant array
+    foldersDbData.push(...remainingFolders);
     await writeFile("./data/foldersDb.json", JSON.stringify(foldersDbData));
     await writeFile("./data/filesDb.json", JSON.stringify(filesDbData));
     return res.json({ msg: "Folder deleted successfully." });

@@ -2,12 +2,9 @@ import express from "express";
 import cors from "cors";
 import fileRoutes from "./routes/fileRoutes.js";
 import folderRoutes from "./routes/folderRoutes.js";
-import { rm } from "fs/promises";
-import path from "node:path";
 
 const app = express();
 app.use(cors());
-app.use(express.json());
 
 app.use((req, res, next) => {
   console.log("REQ =>", req.method, req.url);
