@@ -1,6 +1,7 @@
 import express from "express";
 import filesDbData from "../data/filesDb.json" with { type: "json" };
 import foldersDbData from "../data/foldersDb.json" with { type: "json" };
+import usersDbData from "../data/usersDb.json" with { type: "json" };
 import { writeFile, rm } from "node:fs/promises";
 import path from "node:path";
 
@@ -8,9 +9,7 @@ const router = express.Router();
 
 //read folder and its content
 router.get("/:folderId?", async (req, res) => {
-
-  const folderId = req.params.folderId || foldersDbData[0].id; // default to root folder if no id provided
-
+  const folderId = req.params.folderId || req.rootFolderId; // default to root folder if no id provided
   const folderData = foldersDbData.find((folder) => folder.id === folderId);
 
   if (!folderData) {
@@ -30,11 +29,16 @@ router.get("/:folderId?", async (req, res) => {
 //create folder
 router.post("/:parentDirId?", express.json(), async (req, res) => {
   const folderName = req.body.folderName || "New Folder";
+  const isUniqueFolder = foldersDbData.every(f => f.name !== folderName || f.parentDirId !== (req.params.parentDirId || null));
+  if (!isUniqueFolder) {
+    return res.status(400).json({ error: "Folder name must be unique within the same directory" });
+  }
   const parentDirId = req.params.parentDirId || null;
   const newFolderData = {
     id: crypto.randomUUID(),
     name: folderName,
     parentDirId: parentDirId,
+    user: null,
     files: [],
     folders: [],
   };
@@ -51,7 +55,7 @@ router.post("/:parentDirId?", express.json(), async (req, res) => {
 
     res.json({ msg: "folder created Successfully." });
   } catch (err) {
-    res.json({ msg: err });
+    res.status(500).json({ msg: err });
   }
 });
 

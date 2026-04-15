@@ -44,9 +44,9 @@ router.get("/:id", async (req, res) => {
 
 //create file
 router.post("/:parentDirId?", (req, res, next) => {
-  const fileName = req.headers.filename || "untitled";
+  const fileName = req.headers.filename || "untitled"; 
   const extension = path.extname(fileName);
-  const parentDirId = req.params.parentDirId || null;
+  const parentDirId = req.params.parentDirId || req.rootFolderId;
   const basePath = path.resolve("./storage");
   const id = crypto.randomUUID();
   const filePath = path.join(basePath, `${id}${extension}`);
